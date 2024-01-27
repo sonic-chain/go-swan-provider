@@ -40,6 +40,8 @@ type lotus struct {
 	MarketAccessToken string `toml:"market_access_token"`
 	MaxSealing        int64  `toml:"max_sealing"`
 	MaxAddPiece       int64  `toml:"max_addPiece"`
+	FullNodeApi       string `toml:"full_node_api"`
+	MinerRepo         string `toml:"miner_repo"`
 }
 
 type aria2 struct {

@@ -79,6 +79,23 @@ func (lotusService *LotusService) StartImport(swanClient *swan.SwanClient) {
 		if count <= LOTUS_IMPORT_NUMNBER {
 			maxImportNum = int(count)
 		}
+	} else {
+		minerRepo := config.GetConfig().Lotus.MinerRepo
+		fullNodeApi := config.GetConfig().Lotus.FullNodeApi
+		sealingCapability := config.GetConfig().Lotus.MaxSealing
+		currentRunningTask, err := Statistics(minerRepo, fullNodeApi)
+
+		if err != nil {
+			logs.GetLogger().Error(fmt.Sprintf("get running task count failed,please check lotus-miner running status! error: %s", err.Error()))
+			return
+		}
+		logs.GetLogger().Infof("currentRunningTask:%d,sealingCapability:%d", currentRunningTask, sealingCapability)
+
+		if currentRunningTask > sealingCapability {
+			return
+		}
+		maxImportNum = int(sealingCapability - currentRunningTask)
+
 	}
 
 	deals := GetOfflineDeals(swanClient, DEAL_STATUS_IMPORT_READY, aria2Service.MinerFid, &maxImportNum)

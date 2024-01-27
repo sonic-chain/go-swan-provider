@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/fatih/color"
@@ -12,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"swan-provider/common/constants"
@@ -608,4 +611,52 @@ func GetSectorStates() (int64, int64, bool) {
 
 	count := sealingNum + transferredStatus.Deals.TotalCount + publishedStatus.Deals.TotalCount
 	return int64(count), int64(addPieceNum), true
+}
+
+func Statistics(repo, fullNodeApi string) (int64, error) {
+	ctx, cancelFunc := context.WithTimeout(context.TODO(), 30*time.Second)
+	defer cancelFunc()
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "lotus-miner", "info")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("LOTUS_MINER_PATH=%s", repo),
+		fmt.Sprintf("FULLNODE_API_INFO=%s", fullNodeApi))
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		logs.GetLogger().Errorf("execute cmd error: %s \n", err.Error())
+		return 0, err
+	}
+
+	var count int64
+	scanner := bufio.NewScanner(&stdout)
+	for scanner.Scan() {
+		data := strings.Split(scanner.Text(), ":")
+		if len(data) >= 2 && matchStr(strings.TrimSpace(data[0])) {
+			var value string
+			if strings.TrimSpace(data[0]) == "Publishing" || strings.TrimSpace(data[0]) == "Publish" {
+				reg := regexp.MustCompile("\\s*,\\s*|\\s+")
+				pattern := reg.Split(data[1], -1)
+				value = strings.TrimSpace(pattern[1])
+			} else {
+				value = strings.TrimSpace(data[1])
+			}
+			num, _ := strconv.ParseInt(value, 10, 32)
+			count += num
+		}
+	}
+	return count, nil
+}
+
+func matchStr(key string) bool {
+	match := map[string]int8{
+		"PreCommit1":           1,
+		"Packing":              1,
+		"AddPiece":             1,
+		"WaitDeals":            1,
+		"SealPreCommit1Failed": 1,
+		"Publishing":           1,
+		"Publish":              1,
+	}
+	_, ok := match[key]
+	return ok
 }
